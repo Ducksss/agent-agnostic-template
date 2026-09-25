@@ -1,0 +1,18 @@
+# Blocks commits when agent skill links or generated MCP configs are out of
+# date. Enable once per clone with: pre-commit install
+# CI runs the same checks (.github/workflows/agent-config.yml).
+repos:
+  - repo: local
+    hooks:
+      - id: agent-skill-links
+        name: agent skill links are up to date
+        entry: .agents/scripts/link-skills.sh check
+        language: script
+        pass_filenames: false
+        files: ^\.(agents|claude)/
+      - id: agent-mcp-configs
+        name: agent MCP configs are up to date
+        entry: .agents/scripts/sync-mcp.sh check
+        language: script
+        pass_filenames: false
+        files: ^(\.agents/mcp/|\.mcp\.json$|\.cursor/mcp\.json$|\.codex/config\.toml$)

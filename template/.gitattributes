@@ -1,0 +1,6 @@
+# --- agent config (agent-agnostic-template) ---
+# Generated from .agents/mcp/servers.json by .agents/scripts/sync-mcp.sh.
+# Marked as generated so GitHub collapses them in diffs.
+.mcp.json          linguist-generated=true
+.cursor/mcp.json   linguist-generated=true
+.codex/config.toml linguist-generated=true
