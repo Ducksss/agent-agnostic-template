@@ -40,7 +40,9 @@ while [ $# -gt 0 ]; do
   esac
   shift
 done
-[ -n "$name" ] && [ -n "$description" ] || usage
+if [ -z "$name" ] || [ -z "$description" ]; then
+  usage
+fi
 
 # Resolve the real folder first: agents may run this through .claude/skills/.
 scripts_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"

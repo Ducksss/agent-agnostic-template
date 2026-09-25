@@ -42,7 +42,7 @@ output_has() { grep -Fq -- "$1" "$out" || { cat "$out"; fail_now "output lacks: 
 file_has() { grep -Fq -- "$2" "$1" || fail_now "$1 lacks: $2"; }
 file_lacks() { ! grep -Fq -- "$2" "$1" || fail_now "$1 should not contain: $2"; }
 same() { [ "$1" = "$2" ] || fail_now "expected [$2], got [$1]"; }
-working_link() { [ -L "$1" ] && [ -e "$1" ] || fail_now "not a working symlink: $1"; }
+working_link() { if [ ! -L "$1" ] || [ ! -e "$1" ]; then fail_now "not a working symlink: $1"; fi; }
 
 # Scaffold a fresh project and cd into it.
 new_project() {
@@ -228,7 +228,8 @@ test_create_skill_writes_notes_and_quotes_description() {
 test_package_skill() {
   new_project
   ok .agents/scripts/package-skill.sh new-skill
-  zip=.agents/dist/new-skill-v1.0.zip
+  version="$(sed -n 's/^  version: "\(.*\)"$/\1/p' .agents/skills/new-skill/SKILL.md)"
+  zip=".agents/dist/new-skill-v$version.zip"
   [ -f "$zip" ] || fail_now "missing $zip"
   listing="$(unzip -Z1 "$zip")"
   printf '%s\n' "$listing" | grep -Fxq new-skill/SKILL.md || fail_now "zip lacks new-skill/SKILL.md"

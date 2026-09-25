@@ -172,7 +172,9 @@ if kept_file .pre-commit-config.yaml && ! grep -Fq 'link-skills.sh' "$target/.pr
   notes+=("Add the two local hooks from $template/.pre-commit-config.yaml to your .pre-commit-config.yaml.")
 fi
 for dir in "$target"/.claude/skills/*; do
-  [ -d "$dir" ] && [ ! -L "$dir" ] && [ -f "$dir/SKILL.md" ] || continue
+  if [ -L "$dir" ] || [ ! -f "$dir/SKILL.md" ]; then
+    continue
+  fi
   skill="$(basename "$dir")"
   notes+=("Claude-only skill .claude/skills/$skill: share it with every agent with  git mv .claude/skills/$skill .agents/skills/$skill && .agents/scripts/link-skills.sh")
 done

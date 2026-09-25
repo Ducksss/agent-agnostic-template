@@ -25,11 +25,11 @@ the agent-agnostic template.
 
 **Out of Scope & Deferred**
 
-- Installing third-party skills: use `npx skills add <repo>@<skill>`.
+- Installing third-party skills: use `npx skills add <owner/repo> --skill <name> -y`.
 - Writing the skill's actual instructions; the agent does that with the user.
 - Publishing skills anywhere; packaging stops at a local zip.
 
-**Status:** Ready (v1.0).
+**Status:** Ready (v1.1).
 
 ## 3. Key Decisions
 
@@ -81,4 +81,5 @@ Newest first.
 
 | Version | Date | Author | Changes |
 | --- | --- | --- | --- |
+| 1.1 | 2026-09-25 | Claude | Rewrote one argument check in `create.sh` so older ShellCheck versions pass (no change in behaviour); corrected the `npx skills add` command in Scope. |
 | 1.0 | 2026-09-25 | Claude | Created the skill, its `create.sh` scaffolder and these notes. |

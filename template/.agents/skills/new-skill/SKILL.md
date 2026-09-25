@@ -2,7 +2,7 @@
 name: new-skill
 description: Create or update an agent skill in this repository. Use when asked to add a skill, turn a repeated workflow into a skill, or change an existing skill. Keeps every skill in the shared .agents/skills folder so all coding agents can use it, never directly in .claude/skills or another agent's folder.
 metadata:
-  version: "1.0"
+  version: "1.1"
 ---
 
 # New skill
