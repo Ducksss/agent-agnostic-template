@@ -174,6 +174,16 @@ for target in "${TARGETS[@]}"; do
         ln -s "$want" "$link"
         echo "relinked $target/$name -> $want"
       fi
+    elif [ -f "$link" ] && [ "$(cat "$link")" = "$want" ]; then
+      # A link saved as a plain file, as some unzip tools and git with
+      # core.symlinks off do: turn it back into a link.
+      if [ "$mode" = check ]; then
+        stale "$target/$name is a plain file instead of a link"
+      else
+        rm "$link"
+        ln -s "$want" "$link"
+        echo "relinked $target/$name -> $want"
+      fi
     elif [ -e "$link" ]; then
       error "$target/$name is a real folder; move it into .agents/skills/ (git mv) and re-run"
     elif [ "$mode" = check ]; then

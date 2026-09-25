@@ -1,18 +1,19 @@
 #!/usr/bin/env bash
-# Copy the agent-agnostic template into a new or existing project.
+# Add this repository's agent setup to another project, new or existing.
 #
-#   ./scaffold.sh <dir> [--name <project name>] [--no-git]
+#   .agents/scripts/add-to-repo.sh <dir> [--name <project name>] [--no-git]
 #
-# Nothing in <dir> is overwritten: files that already exist are kept and
-# listed, .gitignore and .gitattributes get the template's lines appended, and
-# MCP configs are only generated when the project has none of its own. Then
-# skills are linked, MCP configs are rendered, and (unless --no-git) the
-# folder is made a git repository if it isn't one yet.
+# Run it from a copy of the template. It copies AGENTS.md, CLAUDE.md, .agents/
+# and the other agent files, never the template's README or LICENSE. Nothing
+# in <dir> is overwritten: files that already exist are kept and listed,
+# .gitignore and .gitattributes get the template's lines appended, and MCP
+# configs are only generated when the project has none of its own. Then skills
+# are linked, MCP configs are rendered, and (unless --no-git) <dir> is made a
+# git repository if it isn't one yet.
 
 set -euo pipefail
 
-here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
-template="$here/template"
+src="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
 marker="# --- agent config (agent-agnostic-template) ---"
 
 usage() {
@@ -37,7 +38,7 @@ while [ $# -gt 0 ]; do
       ;;
     --no-git) init_git=0 ;;
     -h | --help)
-      sed -n '2,11s/^# \{0,1\}//p' "${BASH_SOURCE[0]}"
+      sed -n '2,13s/^# \{0,1\}//p' "${BASH_SOURCE[0]}"
       exit 0
       ;;
     -*) usage ;;
@@ -62,51 +63,43 @@ abs_path() {
 
 target="$(abs_path "$target")"
 case "$target/" in
-  "$here/"*) die "pick a folder outside $here" ;;
+  "$src/"*) die "pick a folder outside $src" ;;
 esac
 mkdir -p "$target"
 name="${name:-$(basename "$target")}"
 
-generated=(.mcp.json .cursor/mcp.json .codex/config.toml)
+# The files that make up the agent setup, relative to $src. Skill links and
+# MCP configs aren't listed: the sync scripts recreate them in $target.
+setup_files() {
+  local file
+  for file in AGENTS.md CLAUDE.md .gitignore .gitattributes .pre-commit-config.yaml \
+    .claude/settings.json .github/workflows/agent-config.yml .agents/skills-local/.gitkeep; do
+    [ ! -f "$src/$file" ] || echo "$file"
+  done
+  # Everything else in .agents/, except packaged zips and private skills.
+  (cd "$src" && find .agents -type f ! -name .DS_Store) | LC_ALL=C sort |
+    grep -v -E '^\.agents/(dist|skills-local)/' || true
+}
+
 had_servers=0
 [ ! -e "$target/.agents/mcp/servers.json" ] || had_servers=1
 existing_mcp=()
-for file in "${generated[@]}"; do
+for file in .mcp.json .cursor/mcp.json .codex/config.toml; do
   [ ! -e "$target/$file" ] || existing_mcp+=("$file")
 done
-
-is_generated() {
-  local file
-  for file in "${generated[@]}"; do
-    [ "$1" != "$file" ] || return 0
-  done
-  return 1
-}
 
 copied=()
 kept=()
 merged=()
 while IFS= read -r rel; do
-  rel="${rel#./}"
-  src="$template/$rel"
   dest="$target/$rel"
-  # Skill links and MCP configs are recreated by the sync scripts below.
-  [ ! -L "$src" ] || continue
-  ! is_generated "$rel" || continue
-  # Never copy packaged zips or private skills that live in the template.
-  case "$rel" in
-    .agents/dist/* | */.DS_Store | .DS_Store) continue ;;
-    .agents/skills-local/.gitkeep) ;;
-    .agents/skills-local/*) continue ;;
-  esac
-
   if [ -e "$dest" ] || [ -L "$dest" ]; then
     case "$rel" in
       .gitignore | .gitattributes)
         if grep -Fqx -- "$marker" "$dest"; then
           kept+=("$rel")
         else
-          { echo; cat "$src"; } >>"$dest"
+          { echo; cat "$src/$rel"; } >>"$dest"
           merged+=("$rel")
         fi
         ;;
@@ -116,15 +109,13 @@ while IFS= read -r rel; do
   fi
 
   mkdir -p "$(dirname "$dest")"
-  cp -p "$src" "$dest"
+  cp -p "$src/$rel" "$dest"
   if [ "$rel" = AGENTS.md ]; then
-    safe="${name//\\/\\\\}"
-    safe="${safe//&/\\&}"
-    PROJECT_NAME="$safe" awk '{ gsub(/\{\{PROJECT_NAME\}\}/, ENVIRON["PROJECT_NAME"]); print }' \
+    PROJECT_NAME="$name" awk 'NR == 1 && $0 == "# Project name" { $0 = "# " ENVIRON["PROJECT_NAME"] } { print }' \
       "$dest" >"$dest.tmp" && mv "$dest.tmp" "$dest"
   fi
   copied+=("$rel")
-done < <(cd "$template" && find . -mindepth 1 \( -type f -o -type l \) | LC_ALL=C sort)
+done < <(setup_files)
 
 in_git() { git -C "$target" rev-parse --is-inside-work-tree >/dev/null 2>&1; }
 if [ "$init_git" -eq 1 ] && command -v git >/dev/null 2>&1 && ! in_git; then
@@ -153,7 +144,7 @@ else
   "$target/.agents/scripts/sync-mcp.sh"
 fi
 
-# Point out steps from the migration guide that need a person.
+# Point out migration steps that need a person.
 notes=()
 kept_file() {
   local file
@@ -163,13 +154,13 @@ kept_file() {
   return 1
 }
 if kept_file AGENTS.md && ! grep -Fq '.agents/AGENTS.md' "$target/AGENTS.md"; then
-  notes+=("Your AGENTS.md doesn't mention .agents/; copy the \"Agent configuration\" section from $template/AGENTS.md.")
+  notes+=("Your AGENTS.md doesn't mention .agents/; copy the \"Agent configuration\" section from $src/AGENTS.md.")
 fi
 if kept_file CLAUDE.md && ! grep -Fq '@AGENTS.md' "$target/CLAUDE.md"; then
   notes+=("CLAUDE.md doesn't import AGENTS.md. Move its shared instructions into AGENTS.md and leave @AGENTS.md plus any Claude-only notes.")
 fi
 if kept_file .pre-commit-config.yaml && ! grep -Fq 'link-skills.sh' "$target/.pre-commit-config.yaml"; then
-  notes+=("Add the two local hooks from $template/.pre-commit-config.yaml to your .pre-commit-config.yaml.")
+  notes+=("Add the two local hooks from $src/.pre-commit-config.yaml to your .pre-commit-config.yaml.")
 fi
 for dir in "$target"/.claude/skills/*; do
   if [ -L "$dir" ] || [ ! -f "$dir/SKILL.md" ]; then
@@ -190,7 +181,7 @@ if [ "${#notes[@]}" -gt 0 ]; then
 fi
 cat <<EOF
 Next steps in $target:
-1. Fill in the TODOs in AGENTS.md.
+1. Fill in the TODOs in AGENTS.md (your agent can help).
 2. Add MCP servers to .agents/mcp/servers.json (servers.example.json shows every
    field), then run .agents/scripts/sync-mcp.sh.
 3. Add skills with .agents/skills/new-skill/scripts/create.sh <name> "<description>".

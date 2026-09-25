@@ -20,3 +20,8 @@ jobs:
         run: .agents/scripts/link-skills.sh check
       - name: MCP configs
         run: .agents/scripts/sync-mcp.sh check
+      # Only the template repository runs the scripts' self-tests. In a project
+      # made from it, run .agents/tests/run.sh yourself after changing a script.
+      - name: Self-tests
+        if: github.event.repository.is_template
+        run: .agents/tests/run.sh

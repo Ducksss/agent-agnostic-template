@@ -1,11 +1,15 @@
-# {{PROJECT_NAME}}
+# Project name
 
 <!--
   Instructions for every coding agent (Codex, Cursor, Copilot, Gemini CLI,
   Claude Code via CLAUDE.md, ...). Agents load this file into every session,
-  so keep it short and specific. Replace each TODO and delete what you don't
-  need. A sub-package can have its own AGENTS.md (plus a CLAUDE.md containing
-  "@AGENTS.md" for Claude Code); agents combine it with this one.
+  so keep it short and specific. Replace the heading and each TODO, and delete
+  what you don't need. A sub-package can have its own AGENTS.md (plus a
+  CLAUDE.md containing "@AGENTS.md" for Claude Code); agents combine it with
+  this one.
+
+  New repo from the agent-ready template? Once: replace README.md and LICENSE
+  with your project's own, then delete this paragraph.
 -->
 
 TODO: one or two sentences on what this project does and who it is for.

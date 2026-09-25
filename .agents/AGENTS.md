@@ -16,6 +16,9 @@ formats. Make changes here. Files in `.claude/`, `.cursor/`, `.codex/` and
 | `scripts/link-skills.sh` | Links skills into `.claude/skills/` |
 | `scripts/sync-mcp.sh` | Renders `servers.json` into each agent's MCP config |
 | `scripts/package-skill.sh` | Zips a skill as `dist/<name>-v<version>.zip` |
+| `scripts/add-to-repo.sh` | Copies this setup into another project without overwriting anything |
+| `tests/run.sh` | Self-tests for the scripts; run them after changing one |
+| `REFERENCE.md` | What each agent reads, how to migrate a repo, and known traps |
 
 ## Skills
 

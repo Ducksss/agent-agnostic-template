@@ -7,7 +7,7 @@ building it. Based on David Gibson's
 (fetch your own copy with `gh gist clone 337be9b80b3f03eccd188235c287bb05`).
 
 Checked on 25 September 2026 against the agents' docs and, where possible, the
-tools themselves (Codex CLI 0.152.1 and Claude Code 2.1.220 on this machine).
+tools themselves (Codex CLI 0.152.1 and Claude Code 2.1.220).
 Agents change quickly, so re-check the tables before relying on an old answer.
 
 ## The model
@@ -66,7 +66,7 @@ basics, plus whatever `env` and `env_vars` list. So name every variable a
 server needs under `env`, even where another agent might pass it along anyway.
 
 `sync-mcp.sh` handles all of this. The details are in
-[`template/.agents/AGENTS.md`](template/.agents/AGENTS.md).
+[`.agents/AGENTS.md`](AGENTS.md).
 
 ## Migrating an existing repository
 
@@ -79,8 +79,10 @@ server needs under `env`, even where another agent might pass it along anyway.
    ```
 
    Sort each file into portable, generated or agent-specific.
-2. **Run `scaffold.sh` on the repo.** It adds `.agents/` without overwriting
-   anything, then lists the steps below that apply.
+2. **Add the setup.** Clone the template anywhere and run
+   `<template>/.agents/scripts/add-to-repo.sh <your repo>`. It adds `.agents/`
+   and the other agent files without overwriting anything, then lists the steps
+   below that apply.
 3. **Instructions first**, as the least risky step. If `CLAUDE.md` holds the
    real instructions, move them into `AGENTS.md` and leave `CLAUDE.md` as
    `@AGENTS.md` plus any Claude-only notes. If both files have content, merge
@@ -104,7 +106,7 @@ server needs under `env`, even where another agent might pass it along anyway.
   combine it with the ones above it. Claude Code reads nested `CLAUDE.md` files
   instead, so put a `CLAUDE.md` containing `@AGENTS.md` beside each one.
 - **Git submodules:** treat each submodule as its own repository and run
-  `scaffold.sh` inside it. The parent keeps only what helps agents find their
+  `add-to-repo.sh` on it. The parent keeps only what helps agents find their
   way between submodules.
 - **Workspace repos that ignore everything** (`*` in `.gitignore`): add
   exceptions for the agent files, such as `!AGENTS.md`, `!CLAUDE.md`,

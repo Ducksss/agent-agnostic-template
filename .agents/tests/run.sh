@@ -1,18 +1,21 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2016 # many strings here are meant to hold a literal ${VAR}
-# End-to-end tests for the template and its scripts.
+# Self-tests for the agent setup: the scripts in .agents/scripts/, the
+# new-skill scripts, and the repository's own generated files.
 #
-#   tests/run.sh            run every test
-#   tests/run.sh <name>...  run only the named tests
+#   .agents/tests/run.sh            run every test
+#   .agents/tests/run.sh <name>...  run only the named tests
 #
-# Each test scaffolds a fresh project in a temporary folder. HOME and
-# CODEX_HOME point into that folder too, so nothing touches your real config.
-# Uses the codex CLI and shellcheck when they are installed.
+# Each test works on a fresh copy in a temporary folder, reset to the
+# template's defaults, so the tests also pass in a project that has added its
+# own skills and servers. HOME and CODEX_HOME point into that folder too, so
+# nothing touches your real config. Uses the codex CLI and shellcheck when
+# they are installed.
 
 set -uo pipefail
 
-root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
-work="$(mktemp -d "${TMPDIR:-/tmp}/agent-template-tests.XXXXXX")"
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
+work="$(mktemp -d "${TMPDIR:-/tmp}/agent-setup-tests.XXXXXX")"
 trap 'rm -rf "$work"' EXIT
 
 # --- helpers -----------------------------------------------------------------
@@ -44,11 +47,54 @@ file_lacks() { ! grep -Fq -- "$2" "$1" || fail_now "$1 should not contain: $2"; 
 same() { [ "$1" = "$2" ] || fail_now "expected [$2], got [$1]"; }
 working_link() { if [ ! -L "$1" ] || [ ! -e "$1" ]; then fail_now "not a working symlink: $1"; fi; }
 
-# Scaffold a fresh project and cd into it.
+add_to_repo() { "$root/.agents/scripts/add-to-repo.sh" "$@"; }
+
+# Add the agent setup to a fresh folder and cd into it. The copy is reset to
+# the template's defaults (no MCP servers, only the new-skill skill) whatever
+# this repository has added. Leaves add-to-repo.sh's output in $out.
 new_project() {
   proj="$tdir/proj"
-  ok "$root/scaffold.sh" "$proj" "$@"
+  ok add_to_repo "$proj" "$@"
+  cp "$out" "$tdir/added"
   cd "$proj" || exit 1
+  printf '{}\n' >.agents/mcp/servers.json
+  for dir in .agents/skills/*; do
+    [ "$dir" = .agents/skills/new-skill ] || rm -rf "$dir"
+  done
+  ok .agents/scripts/link-skills.sh
+  ok .agents/scripts/sync-mcp.sh
+  cp "$tdir/added" "$out"
+}
+
+# Export the repository the way GitHub serves it: tar for "Use this template"
+# and clones, zip for Download ZIP. Uncommitted changes to tracked files are
+# included. Returns 1 outside a git checkout.
+export_repo() { # <tar|zip> <dir>
+  local rev
+  git -C "$root" rev-parse --is-inside-work-tree >/dev/null 2>&1 || return 1
+  rev="$(git -C "$root" stash create 2>/dev/null)"
+  mkdir -p "$2"
+  if [ "$1" = zip ]; then
+    git -C "$root" archive --format=zip -o "$tdir/repo.zip" "${rev:-HEAD}" &&
+      unzip -q "$tdir/repo.zip" -d "$2"
+  else
+    git -C "$root" archive "${rev:-HEAD}" | tar -xf - -C "$2"
+  fi
+}
+
+# A copy made straight from the repository works without running anything.
+check_fresh_copy() {
+  working_link .claude/skills/new-skill
+  for f in .agents/scripts/*.sh .agents/skills/new-skill/scripts/*.sh .agents/tests/run.sh; do
+    [ -x "$f" ] || fail_now "$f is not executable"
+  done
+  for f in AGENTS.md CLAUDE.md .mcp.json .cursor/mcp.json .codex/config.toml; do
+    [ -f "$f" ] || fail_now "missing $f"
+  done
+  ok .agents/scripts/link-skills.sh check
+  ok .agents/scripts/sync-mcp.sh check
+  git init -q && git add -A
+  ok .agents/scripts/link-skills.sh check
 }
 
 write_servers() { printf '%s\n' "$1" >.agents/mcp/servers.json; }
@@ -60,41 +106,70 @@ skill() { # <dir> <frontmatter lines...>
   { echo "---"; printf '%s\n' "$@"; echo "---"; echo "Body."; } >"$dir/SKILL.md"
 }
 
-# --- scaffold -------------------------------------------------------------------
+# --- getting the template ----------------------------------------------------
 
-test_scaffold_new_project() {
+test_use_this_template() {
+  export_repo tar "$tdir/proj" || {
+    echo "skipped: not a git checkout"
+    return 0
+  }
+  cd "$tdir/proj" || exit 1
+  check_fresh_copy
+}
+
+test_download_zip() {
+  command -v unzip >/dev/null 2>&1 || {
+    echo "skipped: unzip is not installed"
+    return 0
+  }
+  export_repo zip "$tdir/proj" || {
+    echo "skipped: not a git checkout"
+    return 0
+  }
+  cd "$tdir/proj" || exit 1
+  check_fresh_copy
+}
+
+# --- add-to-repo.sh ----------------------------------------------------------
+
+test_add_to_empty_folder() {
   new_project --name "Demo & Co"
   output_has "Initialised a git repository"
-  file_has AGENTS.md "# Demo & Co"
-  file_lacks AGENTS.md "{{PROJECT_NAME}}"
+  if [ "$(head -n 1 "$root/AGENTS.md")" = "# Project name" ]; then
+    same "$(head -n 1 AGENTS.md)" "# Demo & Co"
+  fi
   file_has CLAUDE.md "@AGENTS.md"
+  [ ! -e README.md ] || fail_now "the template's README should stay behind"
+  [ ! -e LICENSE ] || fail_now "the template's LICENSE should stay behind"
   working_link .claude/skills/new-skill
   same "$(readlink .claude/skills/new-skill)" "../../.agents/skills/new-skill"
   [ ! -e .cursor/skills ] || fail_now ".cursor/skills should not exist"
   for f in .mcp.json .cursor/mcp.json .codex/config.toml .gitignore .gitattributes \
     .pre-commit-config.yaml .github/workflows/agent-config.yml .claude/settings.json \
-    .agents/AGENTS.md .agents/skills-local/.gitkeep; do
+    .agents/AGENTS.md .agents/REFERENCE.md .agents/tests/run.sh .agents/skills-local/.gitkeep; do
     [ -f "$f" ] || fail_now "missing $f"
   done
   jq -e '.mcpServers == {}' .mcp.json >/dev/null || fail_now ".mcp.json should have no servers"
   ok .agents/scripts/link-skills.sh check
   ok .agents/scripts/sync-mcp.sh check
-  for f in .agents/scripts/*.sh .agents/skills/new-skill/scripts/*.sh; do
+  for f in .agents/scripts/*.sh .agents/skills/new-skill/scripts/*.sh .agents/tests/run.sh; do
     [ -x "$f" ] || fail_now "$f is not executable"
   done
 }
 
-test_scaffold_twice_changes_nothing() {
-  new_project
+test_add_twice_changes_nothing() {
+  proj="$tdir/proj"
+  ok add_to_repo "$proj"
+  cd "$proj" || exit 1
   before="$(find . -path ./.git -prune -o -type f -print | LC_ALL=C sort | xargs shasum)"
-  ok "$root/scaffold.sh" "$proj"
+  ok add_to_repo "$proj"
   output_has "Copied 0 file(s)"
   after="$(find . -path ./.git -prune -o -type f -print | LC_ALL=C sort | xargs shasum)"
   same "$after" "$before"
   same "$(grep -c 'agent-agnostic-template' .gitignore)" 1
 }
 
-test_scaffold_keeps_existing_files() {
+test_add_keeps_existing_files() {
   proj="$tdir/proj"
   mkdir -p "$proj/.claude/skills/legacy" && cd "$proj" || exit 1
   git init -q
@@ -103,7 +178,7 @@ test_scaffold_keeps_existing_files() {
   echo "node_modules/" >.gitignore
   echo '{"mcpServers":{"mine":{"command":"echo"}}}' >.mcp.json
   skill .claude/skills/legacy "name: legacy" "description: Old skill"
-  ok "$root/scaffold.sh" "$proj"
+  ok add_to_repo "$proj"
   same "$(cat AGENTS.md)" "# Mine"
   same "$(cat CLAUDE.md)" "Use tabs."
   same "$(cat .mcp.json)" '{"mcpServers":{"mine":{"command":"echo"}}}'
@@ -116,10 +191,10 @@ test_scaffold_keeps_existing_files() {
   output_has "Your AGENTS.md doesn't mention .agents/"
 }
 
-test_scaffold_refuses_template_folder() {
-  fails "$root/scaffold.sh" "$root/template/sub"
+test_add_refuses_folder_inside_source() {
+  fails add_to_repo "$root/sub"
   output_has "pick a folder outside"
-  [ ! -e "$root/template/sub" ] || fail_now "created a folder inside the template"
+  [ ! -e "$root/sub" ] || fail_now "created a folder inside the source repository"
 }
 
 # --- link-skills.sh ----------------------------------------------------------
@@ -168,6 +243,16 @@ test_links_private_skills_stay_out_of_git() {
   rm -rf .agents/skills-local/mine
   ok .agents/scripts/link-skills.sh
   file_lacks .git/info/exclude "/.claude/skills/mine"
+}
+
+test_links_restore_link_saved_as_file() {
+  new_project
+  rm .claude/skills/new-skill
+  printf '../../.agents/skills/new-skill' >.claude/skills/new-skill # how git writes it without symlinks
+  fails .agents/scripts/link-skills.sh check
+  output_has "is a plain file instead of a link"
+  ok .agents/scripts/link-skills.sh
+  working_link .claude/skills/new-skill
 }
 
 test_links_refuse_to_replace_real_folders() {
@@ -256,9 +341,9 @@ test_mcp_example_matches_golden_files() {
   new_project
   cp .agents/mcp/servers.example.json .agents/mcp/servers.json
   ok .agents/scripts/sync-mcp.sh
-  diff -u "$root/tests/golden/mcp.json" .mcp.json || fail_now ".mcp.json differs from tests/golden"
-  diff -u "$root/tests/golden/cursor-mcp.json" .cursor/mcp.json || fail_now ".cursor/mcp.json differs"
-  diff -u "$root/tests/golden/codex-config.toml" .codex/config.toml || fail_now ".codex/config.toml differs"
+  diff -u "$root/.agents/tests/golden/mcp.json" .mcp.json || fail_now ".mcp.json differs from .agents/tests/golden"
+  diff -u "$root/.agents/tests/golden/cursor-mcp.json" .cursor/mcp.json || fail_now ".cursor/mcp.json differs"
+  diff -u "$root/.agents/tests/golden/codex-config.toml" .codex/config.toml || fail_now ".codex/config.toml differs"
   ok .agents/scripts/sync-mcp.sh check
 }
 
@@ -406,11 +491,10 @@ test_install_codex() {
   [ -n "$(find "$tdir/dotfiles/config.toml" -perm 600)" ] || fail_now "install-codex changed the config's permissions"
 }
 
-# --- the template itself -----------------------------------------------------
+# --- this repository -----------------------------------------------------------
 
-test_template_is_in_sync() {
-  cd "$root/template" || exit 1
-  working_link .claude/skills/new-skill
+test_repo_is_in_sync() {
+  cd "$root" || exit 1
   ok .agents/scripts/link-skills.sh check
   ok .agents/scripts/sync-mcp.sh check
   jq -e . .agents/mcp/servers.example.json .claude/settings.json >/dev/null || fail_now "invalid JSON"
@@ -421,8 +505,8 @@ test_shellcheck() {
     echo "skipped: shellcheck is not installed"
     return 0
   }
-  ok shellcheck "$root/scaffold.sh" "$root/tests/run.sh" "$root"/template/.agents/scripts/*.sh \
-    "$root"/template/.agents/skills/new-skill/scripts/*.sh
+  ok shellcheck "$root"/.agents/scripts/*.sh "$root"/.agents/tests/run.sh \
+    "$root"/.agents/skills/new-skill/scripts/*.sh
 }
 
 # --- runner ------------------------------------------------------------------

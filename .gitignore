@@ -1,2 +1,16 @@
-dist/
+# --- agent config (agent-agnostic-template) ---
+# Private skills stay on this machine. Their links in .claude/skills/ are kept
+# out of git by .agents/scripts/link-skills.sh.
+.agents/skills-local/*
+!.agents/skills-local/.gitkeep
+
+# Zipped skills from .agents/scripts/package-skill.sh.
+.agents/dist/
+
+# Machine-local agent settings and state.
+.claude/settings.local.json
+.claude/worktrees/
+CLAUDE.local.md
+
+# macOS folder metadata.
 .DS_Store
