@@ -29,7 +29,7 @@ the agent-agnostic template.
 - Writing the skill's actual instructions; the agent does that with the user.
 - Publishing skills anywhere; packaging stops at a local zip.
 
-**Status:** Ready (v1.1).
+**Status:** Ready (v1.2).
 
 ## 3. Key Decisions
 
@@ -73,7 +73,7 @@ the agent-agnostic template.
 
 | Question | Who resolves it |
 | --- | --- |
-| Accept duplicate skill listings in Cursor and Copilot, or turn off Cursor's third-party skills setting on each machine? | Chai Pin Zheng |
+| None | N/A |
 
 ## 7. Changelog
 
@@ -81,5 +81,6 @@ Newest first.
 
 | Version | Date | Author | Changes |
 | --- | --- | --- | --- |
+| 1.2 | 2026-09-26 | Claude | Open Questions set to None: the duplicate-listing choice is made on each machine and is covered under Key Nuances, and this file is copied into every project made from the template. |
 | 1.1 | 2026-09-25 | Claude | Rewrote one argument check in `create.sh` so older ShellCheck versions pass (no change in behaviour); corrected the `npx skills add` command in Scope. |
 | 1.0 | 2026-09-25 | Claude | Created the skill, its `create.sh` scaffolder and these notes. |

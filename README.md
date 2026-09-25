@@ -100,3 +100,8 @@ push and pull request (`.github/workflows/test.yml`). If you change how configs 
 rendered, check the new output by hand, then copy it into `tests/golden/`.
 After changing `template/.agents`, run `link-skills.sh` and `sync-mcp.sh`
 inside `template/` so its own generated files stay current (a test checks this).
+
+## License
+
+[MIT No Attribution](LICENSE): use, copy and change anything here, including
+in projects made with `scaffold.sh`, without keeping a copyright notice.
